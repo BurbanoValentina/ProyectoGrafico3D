@@ -1,0 +1,16 @@
+:root { --panel-w: 300px; }
+* { box-sizing: border-box; font-family: Arial, sans-serif; }
+html,body,#root { height:100%; margin:0; }
+.app { display:flex; height:100vh; }
+.panel {
+  width: var(--panel-w);
+  padding:16px;
+  background:#f6f6f8;
+  border-right:1px solid #ddd;
+}
+.panel input[type="text"], .panel input[type="range"], .panel input[type="number"] {
+  width:100%;
+  margin-bottom:8px;
+}
+.canvasArea { flex:1; background:#eee; position:relative; }
+.panel h2 { margin:0 0 8px 0; }
