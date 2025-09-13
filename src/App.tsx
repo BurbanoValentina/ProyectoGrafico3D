@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import Surface from "./components/SurfacePlot";
 
 export default function App() {
@@ -17,14 +17,30 @@ export default function App() {
           placeholder="e.g. Math.sin(x+y)-0.5*Math.cos(t)"
         />
         <label>Rango (±)</label>
-        <input type="range" min="1" max="8" step="0.5" value={range} onChange={(e)=>setRange(Number(e.target.value))}/>
+        <input
+          type="range"
+          min="1"
+          max="8"
+          step="0.5"
+          value={range}
+          onChange={(e) => setRange(Number(e.target.value))}
+        />
         <div>±{range}</div>
 
         <label>Resolución</label>
-        <input type="range" min="20" max="200" step="10" value={res} onChange={(e)=>setRes(Number(e.target.value))}/>
+        <input
+          type="range"
+          min="20"
+          max="200"
+          step="10"
+          value={res}
+          onChange={(e) => setRes(Number(e.target.value))}
+        />
         <div>{res} x {res}</div>
 
-        <p style={{fontSize:12}}>Usa `x`, `y`, `t` y funciones de Math (Math.sin, Math.cos, Math.sqrt, etc.).</p>
+        <p style={{ fontSize: 12 }}>
+          Usa `x`, `y`, `t` y funciones de Math (Math.sin, Math.cos, Math.sqrt, etc.).
+        </p>
       </aside>
 
       <main className="canvasArea">
