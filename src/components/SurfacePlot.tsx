@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { compile, evaluate, parse } from "mathjs";
+// import { compile, evaluate, parse } from "mathjs"; // eliminar si no se usa
 
 type Props = {
   expression: string;
@@ -30,7 +30,7 @@ export default function Surface({ expression, range, resolution }: Props) {
       fnRef.current = f;
     } catch (err) {
       console.error("Error compiling expression", err);
-      fnRef.current = (x:number,y:number,t:number) => 0;
+      fnRef.current = (_x:number,_y:number,_t:number) => 0;
     }
   }, [expression]);
 
