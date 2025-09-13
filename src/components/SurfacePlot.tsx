@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { compile } from "mathjs";
+import { compile, evaluate, parse } from "mathjs";
 
 type Props = {
   expression: string;
