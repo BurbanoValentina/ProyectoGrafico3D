@@ -68,7 +68,7 @@ export default function SurfaceInspector({
 }: Props) {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const fn = useMemo(() => compileExpr(expression), [expression]);
-    const dens = useMemo(() => compileExprXY(densityExpression) ?? ((x: number, y: number) => 1), [densityExpression]);
+    const dens = useMemo(() => compileExprXY(densityExpression) ?? ((_x: number, _y: number) => 1), [densityExpression]);
     const gFun = useMemo(() => compileExprXY(constraintExpression), [constraintExpression]);
 
     // —— estado para panel flotante
