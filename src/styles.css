@@ -14,3 +14,63 @@ html,body,#root { height:100%; margin:0; }
 }
 .canvasArea { flex:1; background:#eee; position:relative; }
 .panel h2 { margin:0 0 8px 0; }
+/* Solo estilos del panel (celeste + título neón) */
+.panel.panel-celeste {
+  background: linear-gradient(180deg, #9fd9ed 0%, #23c287 100%); /* celeste suave */
+  border-right: 1px solid #bfe6ff;
+  padding: 16px;
+}
+
+.neon-title {
+  color: #000000;
+  text-shadow:
+    0 0 2px #000000,
+    0 0 6px #b9c8ff,
+    0 0 10px #b9c8ff,
+    0 0 18px #b9c8ff;
+  letter-spacing: .5px;
+}
+
+/* Afinar inputs dentro del panel sin tocar el canvas ni el inspector */
+.panel .form-label { font-weight: 600; }
+.panel .form-control,
+.panel .form-range {
+  --bs-border-radius: .5rem;
+}
+.panel .form-control:focus {
+  box-shadow: 0 0 0 .2rem rgba(43, 199, 255, .25);
+  border-color: #125871;
+}
+.panel .badge {
+  font-weight: 600;
+  border-radius: .5rem;
+}
+/* Efecto neón ya existente (lo mantenemos) */
+/* ... tu .neon-title actual ... */
+
+/* Parpadeo del título (flicker) */
+.neon-flicker {
+  animation: neonFlicker 3.2s infinite;
+  will-change: text-shadow, opacity;
+}
+
+@keyframes neonFlicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    opacity: 1;
+    text-shadow:
+      0 0 2px #fff,
+      0 0 6px #a1e7ff,
+      0 0 10px #60d7ff,
+      0 0 18px #2bc7ff,
+      0 0 28px #14bfff,
+      0 0 36px #14bfff;
+  }
+  20%, 22%, 24%, 55% {
+    opacity: .85;
+    text-shadow:
+      0 0 1px #fff,
+      0 0 3px #a1e7ff,
+      0 0 6px #60d7ff,
+      0 0 12px #2bc7ff;
+  }
+}
