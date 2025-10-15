@@ -1,18 +1,49 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import SurfaceInspector from "./components/SurfaceInspector";
-import SurfaceDraggable from "./components/SurfaceDraggable"; // ⬅️ nuevo import
+import SurfaceDraggable from "./components/SurfaceDraggable";
+import GradientField3D from "./components/GradientField3D"; // ⬅️ nuevo import
+
+type Viewer = "inspector" | "draggable" | "gradient";
+type FnXYT = (x: number, y: number, t: number) => number;
+
+function compileExpr(expr: string): FnXYT {
+    const safeExpr = expr.replace(
+        /\b(sin|cos|tan|asin|acos|atan|sqrt|abs|pow|exp|log|min|max|floor|ceil|sinh|cosh|tanh)\b/g,
+        (m) => `Math.${m}`
+    );
+    try {
+        // eslint-disable-next-line no-new-func
+        const f = new Function("x", "y", "t", `return (${safeExpr});`) as FnXYT;
+        return (x, y, t) => {
+            const v = f(x, y, t);
+            const n = Number(v);
+            return Number.isFinite(n) ? n : NaN;
+        };
+    } catch {
+        return () => NaN;
+    }
+}
 
 export default function App() {
-  const [expr, setExpr] = useState<string>("sin(x*2 + y) - 0.5*sin(t*2)");
-  const [range, setRange] = useState<number>(4);
-  const [res, setRes] = useState<number>(80);
+   const [expr, setExpr] = useState<string>("sin(x*2 + y) - 0.5*sin(t*2)");
+   const [range, setRange] = useState<number>(4);
+   const [res, setRes] = useState<number>(80);
 
-  // Opcionales para masa/centro de masa y Lagrange (solo los usa el Inspector):
-  const [density, setDensity] = useState<string>("1");      // σ(x,y)
-  const [constraint, setConstraint] = useState<string>(""); // g(x,y)=0
+   // Opcionales para masa/centro de masa y Lagrange (solo Inspector):
+   const [density, setDensity] = useState<string>("1");      // σ(x,y)
+   const [constraint, setConstraint] = useState<string>(""); // g(x,y)=0
 
-  // ⬇️ selector de visor
-  const [viewer, setViewer] = useState<"inspector" | "draggable">("inspector");
+   // ⬇️ selector de visor (ahora con "gradient")
+   const [viewer, setViewer] = useState<Viewer>("inspector");
+
+   // Controles específicos para Gradient Field 3D
+   const [vectors, setVectors] = useState<number>(18);     // flechas por eje
+   const [vectorScale, setVectorScale] = useState<number>(0.55); // escala de largo
+   const [step, setStep] = useState<number>(1e-3);         // h derivadas
+   const [tParam, setTParam] = useState<number>(0);        // parámetro t
+
+   // Compilar la expresión una vez
+   const compiledFn = useMemo(() => compileExpr(expr), [expr]);
 
   return (
     <div className="app">
@@ -25,10 +56,11 @@ export default function App() {
           <select
             className="form-select form-select-sm"
             value={viewer}
-            onChange={(e) => setViewer(e.target.value as any)}
+            onChange={(e) => setViewer(e.target.value as Viewer)}
           >
             <option value="inspector">Inspector (stats, Lagrange, cortes)</option>
             <option value="draggable">Draggable (pan/zoom/rotar con mouse)</option>
+            <option value="gradient">Campo gradiente 3D (flechas en z=0)</option>
           </select>
           <div className="form-text">
             En <b>Draggable</b> no se calculan densidad/Lagrange; es para mover la gráfica.
@@ -81,10 +113,80 @@ export default function App() {
           />
         </div>
 
+        {/* Controles para Gradient Field 3D */}
+        {viewer === "gradient" && (
+          <>
+            <hr className="my-3 opacity-50" />
+            <div className="mb-3">
+              <label className="form-label d-flex justify-content-between">
+                <span>Vectores por eje</span>
+                <span className="badge bg-dark-subtle text-dark-emphasis">{vectors} × {vectors}</span>
+              </label>
+              <input
+                type="range"
+                min="6"
+                max="30"
+                step="2"
+                className="form-range"
+                value={vectors}
+                onChange={(e) => setVectors(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label d-flex justify-content-between">
+                <span>Escala de flecha</span>
+                <span className="badge bg-dark-subtle text-dark-emphasis">{vectorScale.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                min="0.1"
+                max="1.5"
+                step="0.05"
+                className="form-range"
+                value={vectorScale}
+                onChange={(e) => setVectorScale(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label d-flex justify-content-between">
+                <span>Paso h (derivadas)</span>
+                <span className="badge bg-dark-subtle text-dark-emphasis">{step}</span>
+              </label>
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                value={step}
+                step="0.0005"
+                min="0.0001"
+                onChange={(e) => setStep(Number(e.target.value))}
+              />
+              <div className="form-text">Se usa en diferencias finitas centrales para f<sub>x</sub>, f<sub>y</sub>.</div>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label d-flex justify-content-between">
+                <span>Parámetro t</span>
+                <span className="badge bg-dark-subtle text-dark-emphasis">{tParam.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                min="-6"
+                max="6"
+                step="0.1"
+                className="form-range"
+                value={tParam}
+                onChange={(e) => setTParam(Number(e.target.value))}
+              />
+            </div>
+          </>
+        )}
+
         <hr className="my-3 opacity-50" />
 
         {/* Estos solo aplican al Inspector */}
-        <fieldset disabled={viewer === "draggable"}>
+        <fieldset disabled={viewer !== "inspector"}>
           <div className="mb-3">
             <label className="form-label">Densidad σ(x,y) (opcional)</label>
             <input
@@ -106,7 +208,8 @@ export default function App() {
               placeholder="p.ej. x*x + y*y - 9"
             />
           </div>
-          {viewer === "draggable" && (
+
+          {viewer !== "inspector" && (
             <div className="form-text">
               Cambia a <b>Inspector</b> para usar densidad y restricción.
             </div>
@@ -123,11 +226,21 @@ export default function App() {
             densityExpression={density || undefined}
             constraintExpression={constraint || undefined}
           />
-        ) : (
+        ) : viewer === "draggable" ? (
           <SurfaceDraggable
             expression={expr}
             range={range}
             resolution={res}
+          />
+        ) : (
+          <GradientField3D
+            expression={compiledFn}
+            range={range}
+            resolution={res}
+            vectors={vectors}
+            vectorScale={vectorScale}
+            step={step}
+            t={tParam}
           />
         )}
       </main>
