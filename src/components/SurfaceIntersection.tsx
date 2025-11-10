@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import SurfacePlot from "./SurfacePlot";
 import * as math from "mathjs";
 
-<<<<<<< HEAD
 /**
  * SurfaceIntersection
  * -------------------------------------------------
@@ -14,8 +13,6 @@ import * as math from "mathjs";
  *
  * UI text is in Spanish (per user preference), code & comments in English.
  */
-=======
->>>>>>> 63bf797 (Nuevo componente)
 export default function SurfaceIntersection() {
   // ----- UI state -----
   const [expr1, setExpr1] = useState("sin(x)*cos(y)");
@@ -96,12 +93,12 @@ export default function SurfaceIntersection() {
     const pushEdgeCross = (xA: number, yA: number, gA: number, xB: number, yB: number, gB: number) => {
       const sA = signWithTol(gA);
       const sB = signWithTol(gB);
-      if (sA === 0 && sB === 0) return; // the whole edge is on the isocurve; skip to avoid floods
+      if (sA === 0 && sB === 0) return; // whole edge on isocurve; skip to avoid floods
       if (sA === sB) return; // no crossing
       const denom = gB - gA;
       if (Math.abs(denom) <= EPS) return;
       const t = (0 - gA) / denom; // linear interpolation fraction in [0,1]
-      if (t < 0 - 1e-6 || t > 1 + 1e-6) return; // guard
+      if (t < -1e-6 || t > 1 + 1e-6) return; // guard
       const x = xA + t * (xB - xA);
       const y = yA + t * (yB - yA);
       // z on curve (evaluate one function for better accuracy)
