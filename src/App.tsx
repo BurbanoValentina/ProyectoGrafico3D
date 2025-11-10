@@ -1,8 +1,12 @@
 import { useState, useMemo } from "react";
 import SurfaceInspector from "./components/SurfaceInspector";
 import SurfaceDraggable from "./components/SurfaceDraggable";
+<<<<<<< HEAD
 import GradientField3D from "./components/GradientField3D";
 import SurfaceIntersection from "./components/SurfaceIntersection";
+=======
+import GradientField3D from "./components/GradientField3D"; 
+>>>>>>> 63bf797 (Nuevo componente)
 
 type Viewer = "inspector" | "draggable" | "gradient";
 type FnXYT = (x: number, y: number, t: number) => number;

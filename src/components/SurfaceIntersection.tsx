@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import SurfacePlot from "./SurfacePlot";
 import * as math from "mathjs";
 
+<<<<<<< HEAD
 /**
  * SurfaceIntersection
  * -------------------------------------------------
@@ -13,6 +14,8 @@ import * as math from "mathjs";
  *
  * UI text is in Spanish (per user preference), code & comments in English.
  */
+=======
+>>>>>>> 63bf797 (Nuevo componente)
 export default function SurfaceIntersection() {
   // ----- UI state -----
   const [expr1, setExpr1] = useState("sin(x)*cos(y)");
