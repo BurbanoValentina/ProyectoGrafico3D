@@ -1,81 +1,137 @@
-// src/components/SurfaceIntersection.tsx
 import { useMemo, useState } from "react";
 import SurfacePlot from "./SurfacePlot";
 import * as math from "mathjs";
 
+/**
+ * SurfaceIntersection
+ * -------------------------------------------------
+ * Goal: Plot two explicit surfaces z = f1(x,y) and z = f2(x,y)
+ * and visualize their intersection curve by detecting sign changes
+ * of g(x,y) = f1(x,y) - f2(x,y) on a regular grid and linearly
+ * interpolating along cell edges. The intersection is rendered as
+ * red points (dense enough to look like a curve).
+ *
+ * UI text is in Spanish (per user preference), code & comments in English.
+ */
 export default function SurfaceIntersection() {
+  // ----- UI state -----
   const [expr1, setExpr1] = useState("sin(x)*cos(y)");
   const [expr2, setExpr2] = useState("cos(x)*sin(y)");
-  const [range, setRange] = useState(4);
-  const [resolution, setResolution] = useState(60);
+  const [range, setRange] = useState(4); // domain: x,y in [-range, range]
+  const [resolution, setResolution] = useState(80); // grid steps per axis (N)
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Compilar expresiones (memoizado)
+  // Optional: epsilon for zero tests in marching squares edge checks
+  const EPS = 1e-8;
+
+  // ----- Compile expressions (memoized) -----
   const compiled = useMemo(() => {
     try {
       const f1 = math.compile(expr1);
       const f2 = math.compile(expr2);
       setErrorMsg(null);
-      return { f1, f2 };
+      return { f1, f2 } as const;
     } catch (err: any) {
       setErrorMsg(err?.message ?? "Error al compilar expresiones");
       return null;
     }
   }, [expr1, expr2]);
 
-  // Generar malla y evaluar funciones (memoizado)
-  const { data, intersections } = useMemo(() => {
-    const resultData: Array<{ x: number; y: number; z1: number; z2: number }> = [];
-    const resultIntersections: Array<{ x: number; y: number; z: number }> = [];
+  // ----- Helpers -----
+  const evalReal = (fn: any, x: number, y: number): number => {
+    try {
+      let z = fn.evaluate({ x, y });
+      if (math.typeOf(z) === "Complex") z = (z as any).re;
+      const zn = Number(z);
+      return Number.isFinite(zn) ? zn : NaN;
+    } catch {
+      return NaN;
+    }
+  };
 
-    if (!compiled) return { data: resultData, intersections: resultIntersections };
+  const signWithTol = (v: number) => (Math.abs(v) <= EPS ? 0 : v > 0 ? 1 : -1);
 
-    const f1 = compiled.f1;
-    const f2 = compiled.f2;
+  // ----- Generate grid and intersection points (memoized) -----
+  const { surf1Points, surf2Points, intersectionPts } = useMemo(() => {
+    const surf1: Array<{ x: number; y: number; z: number }> = [];
+    const surf2: Array<{ x: number; y: number; z: number }> = [];
+    const inter: Array<{ x: number; y: number; z: number }> = [];
 
-    const safeResolution = Math.max(1, Math.floor(resolution));
-    const step = (2 * range) / safeResolution;
+    if (!compiled) return { surf1Points: surf1, surf2Points: surf2, intersectionPts: inter };
 
-    for (let ix = 0; ix <= safeResolution; ix++) {
-      const x = -range + ix * step;
-      for (let iy = 0; iy <= safeResolution; iy++) {
-        const y = -range + iy * step;
-        try {
-          // Crear scope nuevo para cada evaluación
-          const scope1 = { x, y };
-          const scope2 = { x, y };
-          let z1 = f1.evaluate(scope1);
-          let z2 = f2.evaluate(scope2);
+    const { f1, f2 } = compiled;
 
-          // mathjs puede devolver objetos complejos; convertir a número real si corresponde
-          if (math.typeOf(z1) === "Complex") z1 = (z1 as any).re;
-          if (math.typeOf(z2) === "Complex") z2 = (z2 as any).re;
+    // Clamp resolution for performance/safety
+    const N = Math.max(2, Math.min(200, Math.floor(resolution)));
+    const step = (2 * range) / N;
 
-          // forzar a número (si es otra cosa)
-          z1 = Number(z1);
-          z2 = Number(z2);
+    // Precompute axes
+    const xs = new Array(N + 1).fill(0).map((_, i) => -range + i * step);
+    const ys = new Array(N + 1).fill(0).map((_, j) => -range + j * step);
 
-          if (!isFinite(z1) || !isFinite(z2) || Number.isNaN(z1) || Number.isNaN(z2)) {
-            // saltar puntos no válidos
-            continue;
-          }
+    // Precompute f1, f2 and diff g = f1 - f2 on grid
+    const g: number[][] = Array.from({ length: N + 1 }, () => new Array(N + 1).fill(NaN));
+    const z1: number[][] = Array.from({ length: N + 1 }, () => new Array(N + 1).fill(NaN));
+    const z2: number[][] = Array.from({ length: N + 1 }, () => new Array(N + 1).fill(NaN));
 
-          resultData.push({ x, y, z1, z2 });
-
-          const threshold = 0.05;
-          if (Math.abs(z1 - z2) < threshold) {
-            resultIntersections.push({ x, y, z: (z1 + z2) / 2 });
-          }
-        } catch (e) {
-          // ignorar errores puntuales en evaluación (no romper toda la malla)
-          continue;
-        }
+    for (let j = 0; j <= N; j++) {
+      for (let i = 0; i <= N; i++) {
+        const x = xs[i];
+        const y = ys[j];
+        const v1 = evalReal(f1, x, y);
+        const v2 = evalReal(f2, x, y);
+        z1[j][i] = v1;
+        z2[j][i] = v2;
+        g[j][i] = v1 - v2;
+        // surfaces point clouds (dense grid)
+        if (Number.isFinite(v1)) surf1.push({ x, y, z: v1 });
+        if (Number.isFinite(v2)) surf2.push({ x, y, z: v2 });
       }
     }
 
-    return { data: resultData, intersections: resultIntersections };
+    // Marching-squares style: detect sign changes across edges and interpolate
+    const pushEdgeCross = (xA: number, yA: number, gA: number, xB: number, yB: number, gB: number) => {
+      const sA = signWithTol(gA);
+      const sB = signWithTol(gB);
+      if (sA === 0 && sB === 0) return; // the whole edge is on the isocurve; skip to avoid floods
+      if (sA === sB) return; // no crossing
+      const denom = gB - gA;
+      if (Math.abs(denom) <= EPS) return;
+      const t = (0 - gA) / denom; // linear interpolation fraction in [0,1]
+      if (t < 0 - 1e-6 || t > 1 + 1e-6) return; // guard
+      const x = xA + t * (xB - xA);
+      const y = yA + t * (yB - yA);
+      // z on curve (evaluate one function for better accuracy)
+      const z = evalReal(f1, x, y);
+      if (Number.isFinite(z)) inter.push({ x, y, z });
+    };
+
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        // cell corners (i,j) ordering
+        const x0 = xs[i], x1 = xs[i + 1];
+        const y0 = ys[j], y1 = ys[j + 1];
+
+        const g00 = g[j][i];
+        const g10 = g[j][i + 1];
+        const g11 = g[j + 1][i + 1];
+        const g01 = g[j + 1][i];
+
+        // bottom edge: (x0,y0) -> (x1,y0)
+        pushEdgeCross(x0, y0, g00, x1, y0, g10);
+        // right edge: (x1,y0) -> (x1,y1)
+        pushEdgeCross(x1, y0, g10, x1, y1, g11);
+        // top edge: (x1,y1) -> (x0,y1)
+        pushEdgeCross(x1, y1, g11, x0, y1, g01);
+        // left edge: (x0,y1) -> (x0,y0)
+        pushEdgeCross(x0, y1, g01, x0, y0, g00);
+      }
+    }
+
+    return { surf1Points: surf1, surf2Points: surf2, intersectionPts: inter };
   }, [compiled, range, resolution]);
 
+  // ----- Render -----
   return (
     <div className="p-4 flex flex-col gap-3">
       <h2 className="text-lg font-semibold">Intersección de dos superficies</h2>
@@ -85,7 +141,8 @@ export default function SurfaceIntersection() {
         <input
           value={expr1}
           onChange={(e) => setExpr1(e.target.value)}
-          className="border p-1 rounded ml-2"
+          className="border p-1 rounded ml-2 w-full max-w-xl"
+          placeholder="Ej: sin(x)*cos(y)"
         />
       </label>
 
@@ -94,26 +151,34 @@ export default function SurfaceIntersection() {
         <input
           value={expr2}
           onChange={(e) => setExpr2(e.target.value)}
-          className="border p-1 rounded ml-2"
+          className="border p-1 rounded ml-2 w-full max-w-xl"
+          placeholder="Ej: cos(x)*sin(y)"
         />
       </label>
 
-      <label className="block">
-        Rango (±) =
-        <input
-          type="number"
-          value={range}
-          onChange={(e) => setRange(Number(e.target.value))}
-          className="border p-1 rounded ml-2 w-24"
-        />
-        Resolución =
-        <input
-          type="number"
-          value={resolution}
-          onChange={(e) => setResolution(Number(e.target.value))}
-          className="border p-1 rounded ml-2 w-24"
-        />
-      </label>
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="block">
+          Rango (±)
+          <input
+            type="number"
+            value={range}
+            onChange={(e) => setRange(Number(e.target.value))}
+            className="border p-1 rounded ml-2 w-24"
+            step={0.5}
+          />
+        </label>
+        <label className="block">
+          Resolución
+          <input
+            type="number"
+            value={resolution}
+            onChange={(e) => setResolution(Number(e.target.value))}
+            className="border p-1 rounded ml-2 w-24"
+            min={10}
+            max={200}
+          />
+        </label>
+      </div>
 
       {errorMsg ? (
         <div className="text-red-600 text-sm">Error: {errorMsg}</div>
@@ -121,16 +186,36 @@ export default function SurfaceIntersection() {
         <SurfacePlot
           {...({
             dataSets: [
-              { points: data.map((p) => ({ x: p.x, y: p.y, z: p.z1 })), color: "green", opacity: 0.6 },
-              { points: data.map((p) => ({ x: p.x, y: p.y, z: p.z2 })), color: "blue", opacity: 0.6 },
-              { points: intersections, color: "red", size: 3, type: "points" },
+              {
+                name: "z₁(x,y)",
+                points: surf1Points,
+                color: "green",
+                opacity: 0.6,
+              },
+              {
+                name: "z₂(x,y)",
+                points: surf2Points,
+                color: "blue",
+                opacity: 0.6,
+              },
+              {
+                name: "Intersección",
+                points: intersectionPts,
+                color: "red",
+                size: 3,
+                type: "points", // if your SurfacePlot supports "line", you may switch to line rendering
+              },
             ],
+            // Optional props your SurfacePlot might accept:
+            // showAxes: true,
+            // grid: true,
+            // bounds: { x: [-range, range], y: [-range, range] },
           } as any)}
         />
       )}
 
       <p className="text-sm text-gray-600">
-        Los puntos rojos indican la intersección aproximada entre z₁ y z₂.
+        Los puntos rojos representan la curva de intersección aproximada de z₁ y z₂ (g(x,y)=0).
       </p>
     </div>
   );

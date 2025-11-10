@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import SurfaceInspector from "./components/SurfaceInspector";
 import SurfaceDraggable from "./components/SurfaceDraggable";
-import GradientField3D from "./components/GradientField3D"; // ⬅️ nuevo import
+import GradientField3D from "./components/GradientField3D";
+import SurfaceIntersection from "./components/SurfaceIntersection";
 
 type Viewer = "inspector" | "draggable" | "gradient";
 type FnXYT = (x: number, y: number, t: number) => number;
@@ -233,7 +234,7 @@ export default function App() {
             range={range}
             resolution={res}
           />
-        ) : (
+        ) : viewer === "gradient" ? (
           <GradientField3D
             expression={compiledFn}
             range={range}
@@ -243,7 +244,9 @@ export default function App() {
             step={step}
             t={tParam}
           />
-        )}
+        ) : viewer === "intersection" ? (
+          <SurfaceIntersection />
+        ) : null}
       </main>
     </div>
   );
