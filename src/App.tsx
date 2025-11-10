@@ -61,6 +61,7 @@ export default function App() {
             <option value="inspector">Inspector (stats, Lagrange, cortes)</option>
             <option value="draggable">Draggable (pan/zoom/rotar con mouse)</option>
             <option value="gradient">Campo gradiente 3D (flechas en z=0)</option>
+            <option value="intersection">Intersección</option>
           </select>
           <div className="form-text">
             En <b>Draggable</b> no se calculan densidad/Lagrange; es para mover la gráfica.
