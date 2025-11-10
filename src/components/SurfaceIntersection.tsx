@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import SurfacePlot from "./SurfacePlot";
-import * as math from "mathjs";
+import { create, all } from "mathjs";
+const math = create(all, {});
 
 /**
  * SurfaceIntersection
@@ -13,6 +14,13 @@ import * as math from "mathjs";
  *
  * UI text is in Spanish (per user preference), code & comments in English.
  */
+class Boundary extends React.Component<{children: React.ReactNode}, {hasError: boolean; msg?: string}> {
+  constructor(props: any) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError(err: unknown) { return { hasError: true, msg: String(err) }; }
+  componentDidCatch(err: any, info: any) { console.error("SurfaceIntersection crashed:", err, info); }
+  render() { return this.state.hasError ? <div className="text-red-600 text-sm">Falló el render: {this.state.msg}</div> : (this.props.children as any); }
+}
+
 export default function SurfaceIntersection() {
   // ----- UI state -----
   const [expr1, setExpr1] = useState("sin(x)*cos(y)");
@@ -93,12 +101,12 @@ export default function SurfaceIntersection() {
     const pushEdgeCross = (xA: number, yA: number, gA: number, xB: number, yB: number, gB: number) => {
       const sA = signWithTol(gA);
       const sB = signWithTol(gB);
-      if (sA === 0 && sB === 0) return; // whole edge on isocurve; skip to avoid floods
+      if (sA === 0 && sB === 0) return; // the whole edge is on the isocurve; skip to avoid floods
       if (sA === sB) return; // no crossing
       const denom = gB - gA;
       if (Math.abs(denom) <= EPS) return;
       const t = (0 - gA) / denom; // linear interpolation fraction in [0,1]
-      if (t < -1e-6 || t > 1 + 1e-6) return; // guard
+      if (t < 0 - 1e-6 || t > 1 + 1e-6) return; // guard
       const x = xA + t * (xB - xA);
       const y = yA + t * (yB - yA);
       // z on curve (evaluate one function for better accuracy)
@@ -182,36 +190,36 @@ export default function SurfaceIntersection() {
 
       {errorMsg ? (
         <div className="text-red-600 text-sm">Error: {errorMsg}</div>
+      ) : (surf1Points.length === 0 && surf2Points.length === 0) ? (
+        <div className="text-amber-600 text-sm">No se pudieron evaluar puntos válidos en el rango dado.</div>
       ) : (
-        <SurfacePlot
-          {...({
-            dataSets: [
-              {
-                name: "z₁(x,y)",
-                points: surf1Points,
-                color: "green",
-                opacity: 0.6,
-              },
-              {
-                name: "z₂(x,y)",
-                points: surf2Points,
-                color: "blue",
-                opacity: 0.6,
-              },
-              {
-                name: "Intersección",
-                points: intersectionPts,
-                color: "red",
-                size: 3,
-                type: "points", // if your SurfacePlot supports "line", you may switch to line rendering
-              },
-            ],
-            // Optional props your SurfacePlot might accept:
-            // showAxes: true,
-            // grid: true,
-            // bounds: { x: [-range, range], y: [-range, range] },
-          } as any)}
-        />
+        <Boundary>
+          <SurfacePlot
+            {...({
+              dataSets: [
+                {
+                  name: "z₁(x,y)",
+                  points: surf1Points,
+                  color: "green",
+                  opacity: 0.6,
+                },
+                {
+                  name: "z₂(x,y)",
+                  points: surf2Points,
+                  color: "blue",
+                  opacity: 0.6,
+                },
+                {
+                  name: "Intersección",
+                  points: intersectionPts,
+                  color: "red",
+                  size: 3,
+                  type: "points",
+                },
+              ],
+            } as any)}
+          />
+        </Boundary>
       )}
 
       <p className="text-sm text-gray-600">
