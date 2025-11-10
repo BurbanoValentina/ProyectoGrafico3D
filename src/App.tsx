@@ -1,54 +1,78 @@
+// src/App.tsx
 import { useState, useMemo } from "react";
 import SurfaceInspector from "./components/SurfaceInspector";
 import SurfaceDraggable from "./components/SurfaceDraggable";
-<<<<<<< HEAD
 import GradientField3D from "./components/GradientField3D";
 import SurfaceIntersection from "./components/SurfaceIntersection";
-=======
-import GradientField3D from "./components/GradientField3D"; 
->>>>>>> 63bf797 (Nuevo componente)
 
-type Viewer = "inspector" | "draggable" | "gradient";
+type Viewer = "inspector" | "draggable" | "gradient" | "intersection";
 type FnXYT = (x: number, y: number, t: number) => number;
 
+// Compilador de expresiones seguro
 function compileExpr(expr: string): FnXYT {
-    const safeExpr = expr.replace(
-        /\b(sin|cos|tan|asin|acos|atan|sqrt|abs|pow|exp|log|min|max|floor|ceil|sinh|cosh|tanh)\b/g,
-        (m) => `Math.${m}`
-    );
-    try {
-        // eslint-disable-next-line no-new-func
-        const f = new Function("x", "y", "t", `return (${safeExpr});`) as FnXYT;
-        return (x, y, t) => {
-            const v = f(x, y, t);
-            const n = Number(v);
-            return Number.isFinite(n) ? n : NaN;
-        };
-    } catch {
-        return () => NaN;
-    }
+  const FN_NAMES = [
+    "sin","cos","tan","asin","acos","atan",
+    "sqrt","abs","pow","exp","log","min","max",
+    "floor","ceil","sinh","cosh","tanh"
+  ];
+  const FN_RX = new RegExp(`(^|[^.])\\b(${FN_NAMES.join("|")})\\b`, "gi");
+
+  if (!expr || !expr.trim()) return () => NaN;
+
+  let safe = expr
+    .replace(/\^/g, "**")                      // ^ como potencia
+    .replace(/(^|[^.])\bpi\b/gi, "$1Math.PI")  // pi
+    .replace(FN_RX, (_m, pre, name) => `${pre}Math.${name.toLowerCase()}`);
+
+  // Bloquea constructos peligrosos básicos
+  if (/['"`;]|={1,2}|=>|new\s|Function\s*\(/i.test(safe)) {
+    return () => NaN;
+  }
+
+  // Verifica identificadores sueltos
+  const leftoverIds =
+    safe
+      .replace(/\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?/g, " ")
+      .match(/[A-Za-z_]\w*/g) || [];
+
+  const ALLOWED_IDS = new Set(["Math", "PI", "E", "x", "y", "t"]);
+  if (leftoverIds.some(id => !ALLOWED_IDS.has(id))) {
+    return () => NaN;
+  }
+
+  try {
+    // eslint-disable-next-line no-new-func
+    const f = new Function("x", "y", "t", `"use strict"; return (${safe});`) as FnXYT;
+    return (x, y, t) => {
+      const v = f(Number(x), Number(y), Number(t));
+      const n = Number(v);
+      return Number.isFinite(n) ? n : NaN;
+    };
+  } catch {
+    return () => NaN;
+  }
 }
 
 export default function App() {
-   const [expr, setExpr] = useState<string>("sin(x*2 + y) - 0.5*sin(t*2)");
-   const [range, setRange] = useState<number>(4);
-   const [res, setRes] = useState<number>(80);
+  const [expr, setExpr] = useState<string>("sin(x*2 + y) - 0.5*sin(t*2)");
+  const [range, setRange] = useState<number>(4);
+  const [res, setRes] = useState<number>(80);
 
-   // Opcionales para masa/centro de masa y Lagrange (solo Inspector):
-   const [density, setDensity] = useState<string>("1");      // σ(x,y)
-   const [constraint, setConstraint] = useState<string>(""); // g(x,y)=0
+  // Opcionales para masa/centro de masa y Lagrange (solo Inspector):
+  const [density, setDensity] = useState<string>("1");      // σ(x,y)
+  const [constraint, setConstraint] = useState<string>(""); // g(x,y)=0
 
-   // ⬇️ selector de visor (ahora con "gradient")
-   const [viewer, setViewer] = useState<Viewer>("inspector");
+  // Selector de visor (incluye "intersection")
+  const [viewer, setViewer] = useState<Viewer>("inspector");
 
-   // Controles específicos para Gradient Field 3D
-   const [vectors, setVectors] = useState<number>(18);     // flechas por eje
-   const [vectorScale, setVectorScale] = useState<number>(0.55); // escala de largo
-   const [step, setStep] = useState<number>(1e-3);         // h derivadas
-   const [tParam, setTParam] = useState<number>(0);        // parámetro t
+  // Controles específicos para Gradient Field 3D
+  const [vectors, setVectors] = useState<number>(18);           // flechas por eje
+  const [vectorScale, setVectorScale] = useState<number>(0.55); // escala de largo
+  const [step, setStep] = useState<number>(1e-3);               // h derivadas
+  const [tParam, setTParam] = useState<number>(0);              // parámetro t
 
-   // Compilar la expresión una vez
-   const compiledFn = useMemo(() => compileExpr(expr), [expr]);
+  // Compilar la expresión una vez
+  const compiledFn = useMemo(() => compileExpr(expr), [expr]);
 
   return (
     <div className="app">
