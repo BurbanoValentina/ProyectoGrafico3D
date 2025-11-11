@@ -139,6 +139,10 @@ export default function SurfaceIntersection() {
     return { surf1Points: surf1, surf2Points: surf2, intersectionPts: inter };
   }, [compiled, range, resolution]);
 
+  // Mostrar/ocultar coordenadas del corte
+  const [showCoords, setShowCoords] = useState(false);
+  const maxShow = 200; // limitar cantidad a mostrar
+
   // ----- Render -----
   // Layout: controls arriba y visor abajo que ocupa todo el espacio disponible.
   return (
@@ -204,32 +208,51 @@ export default function SurfaceIntersection() {
       {/* visor: ocupar el resto del espacio */}
       <div style={{ flex: 1, minHeight: 0 }}>
         <Boundary>
-          <div style={{ height: "100%" }}>
-            <SurfacePlot
-              {...({
-                dataSets: [
-                  {
-                    name: "z₁(x,y)",
-                    points: surf1Points,
-                    color: "green",
-                    opacity: 0.6,
-                  },
-                  {
-                    name: "z₂(x,y)",
-                    points: surf2Points,
-                    color: "blue",
-                    opacity: 0.6,
-                  },
-                  {
-                    name: "Intersección",
-                    points: intersectionPts,
-                    color: "red",
-                    size: 3,
-                    type: "points",
-                  },
-                ],
-              } as any)}
-            />
+          <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: 8 }}>
+              <label style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                <input type="checkbox" checked={showCoords} onChange={(e) => setShowCoords(e.target.checked)} />
+                <span>Mostrar coordenadas del corte</span>
+              </label>
+              <span style={{ marginLeft: 12, color: "#666" }}>Puntos detectados: {intersectionPts.length}</span>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <SurfacePlot
+                {...({
+                  dataSets: [
+                    {
+                      name: "z₁(x,y)",
+                      points: surf1Points,
+                      color: "green",
+                      opacity: 0.6,
+                    },
+                    {
+                      name: "z₂(x,y)",
+                      points: surf2Points,
+                      color: "blue",
+                      opacity: 0.6,
+                    },
+                  ],
+                } as any)}
+              />
+            </div>
+
+            {showCoords && (
+              <div style={{ maxHeight: 220, overflow: "auto", padding: 8, background: "rgba(255,255,255,0.9)", borderTop: "1px solid #ddd" }}>
+                <strong>Coordenadas del corte (x, y, z) — mostrando hasta {maxShow}:</strong>
+                <ol style={{ margin: "8px 0 0 16px", padding: 0 }}>
+                  {intersectionPts.slice(0, maxShow).map((p, idx) => (
+                    <li key={idx} style={{ fontFamily: "monospace", fontSize: 12, color: "#222", marginBottom: 4 }}>
+                      {`x=${p.x.toFixed(4)}, y=${p.y.toFixed(4)}, z=${p.z.toFixed(4)}`}
+                    </li>
+                  ))}
+                </ol>
+                {intersectionPts.length > maxShow && (
+                  <div style={{ color: "#666", fontSize: 12 }}>... y {intersectionPts.length - maxShow} puntos más</div>
+                )}
+              </div>
+            )}
           </div>
         </Boundary>
       </div>
