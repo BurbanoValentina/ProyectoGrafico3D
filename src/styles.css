@@ -16,8 +16,8 @@ html,body,#root { height:100%; margin:0; }
 .panel h2 { margin:0 0 8px 0; }
 /* Solo estilos del panel (celeste + título neón) */
 .panel.panel-celeste {
-  background: linear-gradient(180deg, #9fd9ed 0%, #23c287 100%); /* celeste suave */
-  border-right: 1px solid #bfe6ff;
+  background: #ffffff;
+  border-right: 1px solid #d7d7d7;
   padding: 16px;
 }
 

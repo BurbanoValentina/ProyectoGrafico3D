@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-// import { compile, evaluate, parse } from "mathjs"; // eliminar si no se usa
+import { compileExpression3 } from "../utils/compileExpression";
 
 type Point3 = { x: number; y: number; z: number };
 type DataSet = {
@@ -29,7 +29,7 @@ type Props =
 
 export default function Surface(props: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const fnRef = useRef<any>(null);
+  const fnRef = useRef<((x: number, y: number, t: number) => number) | null>(null);
   const RANGE_FALLBACK = 4;
   const RES_FALLBACK = 80;
   const isDataMode = Array.isArray((props as any).dataSets);
@@ -38,25 +38,13 @@ export default function Surface(props: Props) {
   const propResolution = (props as any).resolution as number | undefined;
 
   useEffect(() => {
-    // If dataSets are provided, we don't compile an expression.
     if (isDataMode) {
       fnRef.current = null;
       return;
     }
-    // compile expression safely with Math.* allowed by using raw JS eval fallback:
     const expression = propExpression ?? "0";
-    const safeExpr = expression
-      .replace(/\b(sin|cos|tan|sqrt|abs|pow|exp|log|min|max|floor|ceil|asin|acos|atan|sinh|cosh|tanh)\b/g, (m) => `Math.${m}`);
-
-    try {
-      // eslint-disable-next-line no-new-func
-      const f = new Function("x", "y", "t", `return ${safeExpr};`);
-      fnRef.current = f;
-    } catch (err) {
-      console.error("Error compiling expression", err);
-      fnRef.current = (_x: number, _y: number, _t: number) => 0;
-    }
-  }, [/* depend on props: either expression or dataSets */ propExpression, (props as any).dataSets]);
+    fnRef.current = compileExpression3(expression);
+  }, [propExpression, (props as any).dataSets, isDataMode]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -67,9 +55,9 @@ export default function Surface(props: Props) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xffffff);
 
-  const usedRange = propRange ?? RANGE_FALLBACK;
-  const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-  camera.position.set(0, -usedRange * 3, usedRange * 1.8);
+    const usedRange = propRange ?? RANGE_FALLBACK;
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(0, -usedRange * 3, usedRange * 1.8);
     camera.up.set(0, 0, 1);
     camera.lookAt(0, 0, 0);
 
@@ -84,11 +72,11 @@ export default function Surface(props: Props) {
     dir.position.set(5, -5, 10);
     scene.add(dir);
 
-  // grid helper (use provided range if available)
-  const usedRangeForGrid = propRange ?? RANGE_FALLBACK;
-  const grid = new THREE.GridHelper(usedRangeForGrid * 2, 10, 0x222222, 0x888888);
-  grid.rotation.x = Math.PI / 2;
-  scene.add(grid);
+    // grid helper (use provided range if available)
+    const usedRangeForGrid = propRange ?? RANGE_FALLBACK;
+    const grid = new THREE.GridHelper(usedRangeForGrid * 2, 10, 0x222222, 0x888888);
+    grid.rotation.x = Math.PI / 2;
+    scene.add(grid);
 
     // material
     const mat = new THREE.MeshStandardMaterial({
@@ -101,8 +89,8 @@ export default function Surface(props: Props) {
     let mesh: THREE.Mesh | THREE.Points | THREE.Group | null = null;
 
     const makeExpressionGeometry = (t: number) => {
-      const cols = propResolution ?? RES_FALLBACK;
-      const rows = propResolution ?? RES_FALLBACK;
+    const cols = propResolution ?? RES_FALLBACK;
+    const rows = propResolution ?? RES_FALLBACK;
       const usedRange2 = propRange ?? RANGE_FALLBACK;
       const widthSpan = usedRange2 * 2;
       const heightSpan = usedRange2 * 2;
@@ -112,6 +100,7 @@ export default function Surface(props: Props) {
       const normals: number[] = [];
       const colors: number[] = [];
       const indices: number[] = [];
+      const validity: boolean[] = [];
 
       for (let j = 0; j <= rows; j++) {
         for (let i = 0; i <= cols; i++) {
@@ -120,20 +109,22 @@ export default function Surface(props: Props) {
           const x = (u - 0.5) * widthSpan;
           const y = (v - 0.5) * heightSpan;
 
-          let z = 0;
-          try {
-            const f = fnRef.current;
-            z = Number(f ? f(x, y, t) : 0) || 0;
-          } catch (err) {
-            z = 0;
-          }
+          const evaluator = fnRef.current;
+          const rawZ = evaluator ? evaluator(x, y, t) : NaN;
+          const isValid = Number.isFinite(rawZ);
+          const z = isValid ? Number(rawZ) : 0;
+          validity.push(isValid);
 
           positions.push(x, y, z);
           normals.push(0, 0, 1);
 
           const c = new THREE.Color();
-          const normalized = (z + usedRange2) / (2 * usedRange2);
-          c.setHSL(0.7 - normalized * 0.7, 0.8, 0.5);
+          if (isValid) {
+            const normalized = THREE.MathUtils.clamp((z + usedRange2) / (2 * usedRange2), 0, 1);
+            c.setHSL(0.7 - normalized * 0.7, 0.8, 0.5);
+          } else {
+            c.setRGB(0.75, 0.75, 0.75);
+          }
           colors.push(c.r, c.g, c.b);
         }
       }
@@ -144,8 +135,12 @@ export default function Surface(props: Props) {
           const b = i + (cols + 1) * (j + 1);
           const c = i + 1 + (cols + 1) * (j + 1);
           const d = i + 1 + (cols + 1) * j;
-          indices.push(a, b, d);
-          indices.push(b, c, d);
+          if (validity[a] && validity[b] && validity[d]) {
+            indices.push(a, b, d);
+          }
+          if (validity[b] && validity[c] && validity[d]) {
+            indices.push(b, c, d);
+          }
         }
       }
 
@@ -242,24 +237,31 @@ export default function Surface(props: Props) {
     let startX = 0, startY = 0;
     let rotX = 0, rotY = 0;
 
-    container.addEventListener("pointerdown", (e) => {
+    const onPointerDown = (e: PointerEvent) => {
       isDown = true;
       startX = e.clientX;
       startY = e.clientY;
-    });
-    window.addEventListener("pointerup", ()=> isDown = false);
-    window.addEventListener("pointermove", (e) => {
+    };
+    const onPointerUp = () => {
+      isDown = false;
+    };
+    const onPointerMove = (e: PointerEvent) => {
       if (!isDown) return;
       const dx = (e.clientX - startX) * 0.01;
       const dy = (e.clientY - startY) * 0.01;
       startX = e.clientX; startY = e.clientY;
       rotX += dy;
       rotY += dx;
-    });
+    };
+
+    container.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointermove", onPointerMove);
 
     let frame = 0;
     let lastRes = propResolution ?? RES_FALLBACK;
     let lastRange = propRange ?? RANGE_FALLBACK;
+    let rafId = 0;
     const animate = () => {
       frame += 1;
       const t = frame / 60;
@@ -293,9 +295,9 @@ export default function Surface(props: Props) {
       }
 
       renderer.render(scene, camera);
-      requestAnimationFrame(animate);
+      rafId = requestAnimationFrame(animate);
     };
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
 
     // handle resize
     const onResize = () => {
@@ -309,7 +311,11 @@ export default function Surface(props: Props) {
 
     // cleanup
     return () => {
-      window.removeEventListener("resize", onResize);
+  window.removeEventListener("resize", onResize);
+  container.removeEventListener("pointerdown", onPointerDown);
+  window.removeEventListener("pointerup", onPointerUp);
+  window.removeEventListener("pointermove", onPointerMove);
+  cancelAnimationFrame(rafId);
       container.removeChild(renderer.domElement);
       renderer.dispose();
       scene.traverse((o) => {

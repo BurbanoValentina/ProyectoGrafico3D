@@ -1,6 +1,7 @@
 // SurfaceDraggable.tsx
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { compileExpression3 } from "../utils/compileExpression";
 
 type Props = {
     /** expresión JS: puedes usar sin, cos, sqrt... (se transforman a Math.*) */
@@ -11,29 +12,9 @@ type Props = {
     resolution: number;
 };
 
-type FnXYT = (x: number, y: number, t: number) => number;
-
-function compileExpr(expr: string): FnXYT {
-    const safeExpr = expr.replace(
-        /\b(sin|cos|tan|asin|acos|atan|sqrt|abs|pow|exp|log|min|max|floor|ceil|sinh|cosh|tanh)\b/g,
-        (m) => `Math.${m}`
-    );
-    try {
-        // eslint-disable-next-line no-new-func
-        const f = new Function("x", "y", "t", `return (${safeExpr});`) as FnXYT;
-        return (x, y, t) => {
-            const v = f(x, y, t);
-            const n = Number(v);
-            return Number.isFinite(n) ? n : 0;
-        };
-    } catch {
-        return () => 0;
-    }
-}
-
 export default function SurfaceDraggable({ expression, range, resolution }: Props) {
     const mountRef = useRef<HTMLDivElement | null>(null);
-    const fn = useMemo(() => compileExpr(expression), [expression]);
+    const fn = useMemo(() => compileExpression3(expression), [expression]);
 
     useEffect(() => {
         if (!mountRef.current) return;
@@ -68,8 +49,8 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
         const world = new THREE.Group();
         scene.add(world);
 
-    // grilla (rotada a XY)
-    let grid = new THREE.GridHelper(range * 2, 10, 0x222222, 0x888888);
+        // grilla (rotada a XY)
+        let grid: THREE.GridHelper = new THREE.GridHelper(range * 2, 10, 0x222222, 0x888888);
         // @ts-ignore
         grid.rotation.x = Math.PI / 2;
         world.add(grid);
@@ -91,6 +72,7 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
             const positions: number[] = [];
             const colors: number[] = [];
             const indices: number[] = [];
+            const validity: boolean[] = [];
 
             for (let j = 0; j <= rows; j++) {
                 for (let i = 0; i <= cols; i++) {
@@ -98,12 +80,20 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
                     const v = j / rows;
                     const x = -range + u * widthSpan;
                     const y = -range + v * heightSpan;
-                    const z = Number(fn(x, y, t)) || 0;
+                    const rawZ = fn(x, y, t);
+                    const isValid = Number.isFinite(rawZ);
+                    const z = isValid ? Number(rawZ) : 0;
+                    validity.push(isValid);
 
                     positions.push(x, y, z);
 
-                    const normalized = Math.min(1, Math.max(0, (z + range) / (2 * range)));
-                    const c = new THREE.Color().setHSL(0.7 - normalized * 0.7, 0.8, 0.5);
+                    const c = new THREE.Color();
+                    if (isValid) {
+                        const normalized = THREE.MathUtils.clamp((z + range) / (2 * range), 0, 1);
+                        c.setHSL(0.7 - normalized * 0.7, 0.8, 0.5);
+                    } else {
+                        c.setRGB(0.75, 0.75, 0.75);
+                    }
                     colors.push(c.r, c.g, c.b);
                 }
             }
@@ -114,7 +104,12 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
                     const b = i + (cols + 1) * (j + 1);
                     const c = i + 1 + (cols + 1) * (j + 1);
                     const d = i + 1 + (cols + 1) * j;
-                    indices.push(a, b, d, b, c, d);
+                    if (validity[a] && validity[b] && validity[d]) {
+                        indices.push(a, b, d);
+                    }
+                    if (validity[b] && validity[c] && validity[d]) {
+                        indices.push(b, c, d);
+                    }
                 }
             }
 
@@ -226,6 +221,7 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
         let lastRes = resolution;
         let lastRange = range;
 
+        let rafId = 0;
         const animate = () => {
             frame += 1;
             const t = frame / 60;
@@ -238,12 +234,17 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
                 // actualizar grid al nuevo range
                 world.remove(grid);
                 (grid.geometry as THREE.BufferGeometry).dispose();
+                const matGrid = grid.material;
+                if (Array.isArray(matGrid)) {
+                    matGrid.forEach((m) => m.dispose());
+                } else {
+                    matGrid.dispose();
+                }
                 const newGrid = new THREE.GridHelper(range * 2, 10, 0x222222, 0x888888);
                 // @ts-ignore
                 newGrid.rotation.x = Math.PI / 2;
                 world.add(newGrid);
-                // @ts-ignore
-                (grid as any) = newGrid;
+                grid = newGrid;
 
                 lastRes = resolution;
                 lastRange = range;
@@ -255,9 +256,9 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
             }
 
             renderer.render(scene, camera);
-            requestAnimationFrame(animate);
+            rafId = requestAnimationFrame(animate);
         };
-        requestAnimationFrame(animate);
+        rafId = requestAnimationFrame(animate);
 
         // resize
         const onResize = () => {
@@ -272,6 +273,7 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
         // limpieza
         return () => {
             window.removeEventListener("resize", onResize);
+            cancelAnimationFrame(rafId);
             renderer.domElement.removeEventListener("pointerdown", onPointerDown);
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", onPointerUp);

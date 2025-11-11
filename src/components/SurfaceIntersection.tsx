@@ -232,7 +232,7 @@ export default function SurfaceIntersection() {
                       points: surf2Points,
                       color: "blue",
                       opacity: 0.6,
-                    },
+                      },
                   ],
                 } as any)}
               />

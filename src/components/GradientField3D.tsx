@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import type { Fn3 } from "../utils/compileExpression";
 
 
 /**
@@ -18,7 +19,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
  *  - step: h para diferencias finitas (derivadas parciales)
  */
 type Props = {
-    expression: (x: number, y: number, t: number) => number;
+    expression: Fn3;
     range?: number;
     resolution?: number;
     vectors?: number;
@@ -96,13 +97,33 @@ export default function GradientField3D({
         surfaceGeom.rotateX(-Math.PI / 2);
 
         const pos = surfaceGeom.attributes.position as THREE.BufferAttribute;
+        const validity: boolean[] = new Array(pos.count).fill(false);
         for (let i = 0; i < pos.count; i++) {
             const x = pos.getX(i);
             const y = pos.getZ(i); // tras la rotación, Z del geometry es Y del mundo
-            const z = expression(x, y, t) + height;
+            const rawZ = expression(x, y, t);
+            const isValid = Number.isFinite(rawZ);
+            validity[i] = isValid;
+            const z = (isValid ? Number(rawZ) : 0) + height;
             pos.setY(i, z);
         }
         surfaceGeom.computeVertexNormals();
+
+        // Si hay índices, elimina triángulos con vértices inválidos para evitar artefactos.
+        if (surfaceGeom.index) {
+            const filtered: number[] = [];
+            const idx = surfaceGeom.index.array as ArrayLike<number>;
+            for (let i = 0; i < idx.length; i += 3) {
+                const a = idx[i];
+                const b = idx[i + 1];
+                const c = idx[i + 2];
+                if (validity[a] && validity[b] && validity[c]) {
+                    filtered.push(a, b, c);
+                }
+            }
+            surfaceGeom.setIndex(filtered);
+            surfaceGeom.computeVertexNormals();
+        }
 
         const surfaceMat = new THREE.MeshStandardMaterial({
             color: 0xffa24d,

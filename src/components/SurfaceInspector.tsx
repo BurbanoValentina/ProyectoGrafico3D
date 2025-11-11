@@ -1,6 +1,7 @@
 // SurfaceInspector.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { compileExpression2, compileExpression3 } from "../utils/compileExpression";
 
 type Props = {
     /** expresión JS: puedes usar sin, cos, sqrt... (se transforman a Math.*) */
@@ -16,46 +17,6 @@ type Props = {
     /** NUEVO: dominio avanzado h(x,y) <= 0 (máscara de integración/contorno) */
     domainExpression?: string;
 };
-
-type FnXYT = (x: number, y: number, t: number) => number;
-type FnXY = (x: number, y: number) => number;
-
-function compileExpr(expr: string): FnXYT {
-    const safeExpr = expr.replace(
-        /\b(sin|cos|tan|asin|acos|atan|sqrt|abs|pow|exp|log|min|max|floor|ceil|sinh|cosh|tanh)\b/g,
-        (m) => `Math.${m}`
-    );
-    try {
-        // eslint-disable-next-line no-new-func
-        const f = new Function("x", "y", "t", `return (${safeExpr});`) as FnXYT;
-        return (x, y, t) => {
-            const v = f(x, y, t);
-            const n = Number(v);
-            return Number.isFinite(n) ? n : NaN;
-        };
-    } catch {
-        return () => NaN;
-    }
-}
-
-function compileExprXY(expr: string | undefined): FnXY | null {
-    if (!expr) return null;
-    const safeExpr = expr.replace(
-        /\b(sin|cos|tan|asin|acos|atan|sqrt|abs|pow|exp|log|min|max|floor|ceil|sinh|cosh|tanh)\b/g,
-        (m) => `Math.${m}`
-    );
-    try {
-        // eslint-disable-next-line no-new-func
-        const f = new Function("x", "y", `return (${safeExpr});`) as FnXY;
-        return (x, y) => {
-            const v = f(x, y);
-            const n = Number(v);
-            return Number.isFinite(n) ? n : NaN;
-        };
-    } catch {
-        return null;
-    }
-}
 
 function clamp01(v: number) {
     return Math.min(1, Math.max(0, v));
@@ -135,13 +96,13 @@ export default function SurfaceInspector({
     domainExpression, // NUEVO
 }: Props) {
     const mountRef = useRef<HTMLDivElement | null>(null);
-    const fn = useMemo(() => compileExpr(expression), [expression]);
+    const fn = useMemo(() => compileExpression3(expression), [expression]);
     const dens = useMemo(
-        () => compileExprXY(densityExpression) ?? ((_x: number, _y: number) => 1),
+        () => compileExpression2(densityExpression) ?? ((_x: number, _y: number) => 1),
         [densityExpression]
     );
-    const gFun = useMemo(() => compileExprXY(constraintExpression), [constraintExpression]);
-    const domFun = useMemo(() => compileExprXY(domainExpression), [domainExpression]); // NUEVO
+    const gFun = useMemo(() => compileExpression2(constraintExpression), [constraintExpression]);
+    const domFun = useMemo(() => compileExpression2(domainExpression), [domainExpression]); // NUEVO
 
     // —— estado para panel flotante
     const [hover, setHover] = useState<{ x: number; y: number; z: number; t: number } | null>(null);
@@ -202,9 +163,10 @@ export default function SurfaceInspector({
         const rows = Math.max(8, resolution);
         const widthSpan = range * 2;
         const heightSpan = range * 2;
-        const positions: number[] = [];
-        const colors: number[] = [];
-        const indices: number[] = [];
+    const positions: number[] = [];
+    const colors: number[] = [];
+    const indices: number[] = [];
+    const validity: boolean[] = [];
 
         const zGrid: number[][] = Array.from({ length: cols + 1 }, () => new Array(rows + 1).fill(NaN)); // para contornos
         const x0 = -range;
@@ -219,13 +181,21 @@ export default function SurfaceInspector({
 
                 // Si hay dominio, no bloqueamos visualización, pero guardamos z y NaN si fuera del dominio (para contornos)
                 const inDom = domFun ? domFun(x, y) <= 0 : true;
-                const z = Number(fn(x, y, 0));
-                zGrid[i][j] = Number.isFinite(z) && inDom ? z : NaN;
+                const rawZ = fn(x, y, 0);
+                const ok = Number.isFinite(rawZ) && inDom;
+                const z = ok ? Number(rawZ) : 0;
+                zGrid[i][j] = ok ? z : NaN;
+                validity.push(ok);
 
-                positions.push(x, y, Number.isFinite(z) ? z : 0);
+                positions.push(x, y, z);
 
-                const normalized = clamp01(((Number.isFinite(z) ? z : 0) + range) / (2 * range));
-                const c = new THREE.Color().setHSL(0.7 - normalized * 0.7, 0.8, 0.5);
+                const normalized = clamp01(((ok ? z : 0) + range) / (2 * range));
+                const c = new THREE.Color();
+                if (ok) {
+                    c.setHSL(0.7 - normalized * 0.7, 0.8, 0.5);
+                } else {
+                    c.setRGB(0.75, 0.75, 0.75);
+                }
                 colors.push(c.r, c.g, c.b);
             }
         }
@@ -235,7 +205,8 @@ export default function SurfaceInspector({
                 const b = i + (cols + 1) * (j + 1);
                 const c = i + 1 + (cols + 1) * (j + 1);
                 const d = i + 1 + (cols + 1) * j;
-                indices.push(a, b, d, b, c, d);
+                if (validity[a] && validity[b] && validity[d]) indices.push(a, b, d);
+                if (validity[b] && validity[c] && validity[d]) indices.push(b, c, d);
             }
         }
 

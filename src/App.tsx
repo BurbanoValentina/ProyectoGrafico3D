@@ -3,28 +3,9 @@ import SurfaceInspector from "./components/SurfaceInspector";
 import SurfaceDraggable from "./components/SurfaceDraggable";
 import GradientField3D from "./components/GradientField3D"; // ⬅️ nuevo import
 import SurfaceIntersection from "./components/SurfaceIntersection";
+import { compileExpression3 } from "./utils/compileExpression";
 
 type Viewer = "inspector" | "draggable" | "gradient" | "intersection";
-type FnXYT = (x: number, y: number, t: number) => number;
-
-function compileExpr(expr: string): FnXYT {
-    const safeExpr = expr.replace(
-        /\b(sin|cos|tan|asin|acos|atan|sqrt|abs|pow|exp|log|min|max|floor|ceil|sinh|cosh|tanh)\b/g,
-        (m) => `Math.${m}`
-    );
-    try {
-        // eslint-disable-next-line no-new-func
-        const f = new Function("x", "y", "t", `return (${safeExpr});`) as FnXYT;
-        return (x, y, t) => {
-            const v = f(x, y, t);
-            const n = Number(v);
-            return Number.isFinite(n) ? n : NaN;
-        };
-    } catch {
-        return () => NaN;
-    }
-}
-
 export default function App() {
    const [expr, setExpr] = useState<string>("sin(x*2 + y) - 0.5*sin(t*2)");
    const [range, setRange] = useState<number>(4);
@@ -44,7 +25,7 @@ export default function App() {
    const [tParam, setTParam] = useState<number>(0);        // parámetro t
 
    // Compilar la expresión una vez
-   const compiledFn = useMemo(() => compileExpr(expr), [expr]);
+  const compiledFn = useMemo(() => compileExpression3(expr), [expr]);
 
   return (
     <div className="app">
