@@ -68,8 +68,8 @@ export default function SurfaceDraggable({ expression, range, resolution }: Prop
         const world = new THREE.Group();
         scene.add(world);
 
-        // grilla (rotada a XY)
-        const grid = new THREE.GridHelper(range * 2, 10, 0x222222, 0x888888);
+    // grilla (rotada a XY)
+    let grid = new THREE.GridHelper(range * 2, 10, 0x222222, 0x888888);
         // @ts-ignore
         grid.rotation.x = Math.PI / 2;
         world.add(grid);

@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import SurfaceInspector from "./components/SurfaceInspector";
 import SurfaceDraggable from "./components/SurfaceDraggable";
 import GradientField3D from "./components/GradientField3D"; // ⬅️ nuevo import
+import SurfaceIntersection from "./components/SurfaceIntersection";
 
-type Viewer = "inspector" | "draggable" | "gradient";
+type Viewer = "inspector" | "draggable" | "gradient" | "intersection";
 type FnXYT = (x: number, y: number, t: number) => number;
 
 function compileExpr(expr: string): FnXYT {
@@ -53,7 +54,7 @@ export default function App() {
         {/* Selector de visor */}
         <div className="mb-3">
           <label className="form-label">Visor</label>
-          <select
+            <select
             className="form-select form-select-sm"
             value={viewer}
             onChange={(e) => setViewer(e.target.value as Viewer)}
@@ -61,6 +62,7 @@ export default function App() {
             <option value="inspector">Inspector (stats, Lagrange, cortes)</option>
             <option value="draggable">Draggable (pan/zoom/rotar con mouse)</option>
             <option value="gradient">Campo gradiente 3D (flechas en z=0)</option>
+              <option value="intersection">Intersección (curva entre dos superficies)</option>
           </select>
           <div className="form-text">
             En <b>Draggable</b> no se calculan densidad/Lagrange; es para mover la gráfica.
@@ -232,6 +234,8 @@ export default function App() {
             range={range}
             resolution={res}
           />
+        ) : viewer === "intersection" ? (
+          <SurfaceIntersection />
         ) : (
           <GradientField3D
             expression={compiledFn}

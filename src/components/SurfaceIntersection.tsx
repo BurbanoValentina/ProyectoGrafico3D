@@ -140,91 +140,99 @@ export default function SurfaceIntersection() {
   }, [compiled, range, resolution]);
 
   // ----- Render -----
+  // Layout: controls arriba y visor abajo que ocupa todo el espacio disponible.
   return (
-    <div className="p-4 flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">Intersección de dos superficies</h2>
+    <div className="p-4" style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <h2 className="text-lg font-semibold">Intersección de dos superficies</h2>
 
-      <label className="block">
-        Función 1: z₁ =
-        <input
-          value={expr1}
-          onChange={(e) => setExpr1(e.target.value)}
-          className="border p-1 rounded ml-2 w-full max-w-xl"
-          placeholder="Ej: sin(x)*cos(y)"
-        />
-      </label>
-
-      <label className="block">
-        Función 2: z₂ =
-        <input
-          value={expr2}
-          onChange={(e) => setExpr2(e.target.value)}
-          className="border p-1 rounded ml-2 w-full max-w-xl"
-          placeholder="Ej: cos(x)*sin(y)"
-        />
-      </label>
-
-      <div className="flex flex-wrap items-center gap-4">
         <label className="block">
-          Rango (±)
+          Función 1: z₁ =
           <input
-            type="number"
-            value={range}
-            onChange={(e) => setRange(Number(e.target.value))}
-            className="border p-1 rounded ml-2 w-24"
-            step={0.5}
+            value={expr1}
+            onChange={(e) => setExpr1(e.target.value)}
+            className="border p-1 rounded ml-2 w-full max-w-xl"
+            placeholder="Ej: sin(x)*cos(y)"
           />
         </label>
+
         <label className="block">
-          Resolución
+          Función 2: z₂ =
           <input
-            type="number"
-            value={resolution}
-            onChange={(e) => setResolution(Number(e.target.value))}
-            className="border p-1 rounded ml-2 w-24"
-            min={10}
-            max={200}
+            value={expr2}
+            onChange={(e) => setExpr2(e.target.value)}
+            className="border p-1 rounded ml-2 w-full max-w-xl"
+            placeholder="Ej: cos(x)*sin(y)"
           />
         </label>
+
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="block">
+            Rango (±)
+            <input
+              type="number"
+              value={range}
+              onChange={(e) => setRange(Number(e.target.value))}
+              className="border p-1 rounded ml-2 w-24"
+              step={0.5}
+            />
+          </label>
+          <label className="block">
+            Resolución
+            <input
+              type="number"
+              value={resolution}
+              onChange={(e) => setResolution(Number(e.target.value))}
+              className="border p-1 rounded ml-2 w-24"
+              min={10}
+              max={200}
+            />
+          </label>
+        </div>
+
+        {errorMsg ? (
+          <div className="text-red-600 text-sm">Error: {errorMsg}</div>
+        ) : (surf1Points.length === 0 && surf2Points.length === 0) ? (
+          <div className="text-amber-600 text-sm">No se pudieron evaluar puntos válidos en el rango dado.</div>
+        ) : null}
+
+        <p className="text-sm text-gray-600">
+          Los puntos rojos representan la curva de intersección aproximada de z₁ y z₂ (g(x,y)=0).
+        </p>
       </div>
 
-      {errorMsg ? (
-        <div className="text-red-600 text-sm">Error: {errorMsg}</div>
-      ) : (surf1Points.length === 0 && surf2Points.length === 0) ? (
-        <div className="text-amber-600 text-sm">No se pudieron evaluar puntos válidos en el rango dado.</div>
-      ) : (
+      {/* visor: ocupar el resto del espacio */}
+      <div style={{ flex: 1, minHeight: 0 }}>
         <Boundary>
-          <SurfacePlot
-            {...({
-              dataSets: [
-                {
-                  name: "z₁(x,y)",
-                  points: surf1Points,
-                  color: "green",
-                  opacity: 0.6,
-                },
-                {
-                  name: "z₂(x,y)",
-                  points: surf2Points,
-                  color: "blue",
-                  opacity: 0.6,
-                },
-                {
-                  name: "Intersección",
-                  points: intersectionPts,
-                  color: "red",
-                  size: 3,
-                  type: "points",
-                },
-              ],
-            } as any)}
-          />
+          <div style={{ height: "100%" }}>
+            <SurfacePlot
+              {...({
+                dataSets: [
+                  {
+                    name: "z₁(x,y)",
+                    points: surf1Points,
+                    color: "green",
+                    opacity: 0.6,
+                  },
+                  {
+                    name: "z₂(x,y)",
+                    points: surf2Points,
+                    color: "blue",
+                    opacity: 0.6,
+                  },
+                  {
+                    name: "Intersección",
+                    points: intersectionPts,
+                    color: "red",
+                    size: 3,
+                    type: "points",
+                  },
+                ],
+              } as any)}
+            />
+          </div>
         </Boundary>
-      )}
-
-      <p className="text-sm text-gray-600">
-        Los puntos rojos representan la curva de intersección aproximada de z₁ y z₂ (g(x,y)=0).
-      </p>
+      </div>
     </div>
   );
 }
